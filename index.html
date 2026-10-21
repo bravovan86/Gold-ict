@@ -1,0 +1,18 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>数据测试</title>
+<style>body{font:16px -apple-system,sans-serif;padding:16px;max-width:520px;margin:auto}div{border:1px solid #ccc;border-radius:10px;padding:10px;margin:8px 0}b.ok{color:#1a9d55}b.no{color:#d8404f}small{color:#666;display:block;word-break:break-all}</style></head>
+<body><h3>黄金数据源测试</h3><div id="r"></div>
+<script>
+function kb(j){return j.length+" 根K线，最新收盘 "+j[j.length-1][4]}
+var T=[
+["gold-api 现货价","https://api.gold-api.com/price/XAU",function(j){return "价格 "+j.price}],
+["Binance PAXG 5分钟K线","https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=5m&limit=500",kb],
+["Binance 备用域名","https://data-api.binance.vision/api/v3/klines?symbol=PAXGUSDT&interval=5m&limit=500",kb],
+["Kraken PAXG 5分钟K线","https://api.kraken.com/0/public/OHLC?pair=PAXGUSD&interval=5",function(j){var k=Object.keys(j.result).filter(function(x){return x!="last"})[0],a=j.result[k];return a.length+" 根K线，最新收盘 "+a[a.length-1][4]}],
+["Yahoo 黄金期货 5分钟","https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=5m&range=5d",function(j){return j.chart.result[0].timestamp.length+" 根K线"}]
+];
+T.forEach(function(t){
+var d=document.createElement("div");d.innerHTML="<b>"+t[0]+"</b>：测试中…";document.getElementById("r").appendChild(d);
+var c=new AbortController();setTimeout(function(){c.abort()},10000);
+fetch(t[1],{signal:c.signal}).then(function(r){if(!r.ok)throw new Error("状态 "+r.status);return r.json()}).then(function(j){d.innerHTML="<b>"+t[0]+"</b> <b class='ok'>✓ 能用</b><small>"+t[2](j)+"</small>"}).catch(function(e){d.innerHTML="<b>"+t[0]+"</b> <b class='no'>✗ 不能用</b><small>"+e.message+"</small>"});
+});
+</script></body></html>
