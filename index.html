@@ -1,11 +1,12 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>黄金 ICT 分析</title>
 <style>
-:root{--bg:#F4F6FA;--card:#fff;--tx:#131A26;--sub:#5B6677;--ln:#E1E6EE;--up:#1F9D55;--dn:#D8404F}
-@media(prefers-color-scheme:dark){:root{--bg:#0C1118;--card:#151C27;--tx:#E8EDF5;--sub:#8F9BAE;--ln:#232C3A;--up:#3DCB72;--dn:#F0566A}}
+:root{--bg:#F4F6FA;--card:#fff;--tx:#131A26;--sub:#5B6677;--ln:#E1E6EE;--up:#1F9D55;--dn:#D8404F;--s1:#3F7BEA;--s2:#F0782A;--s3:#8E5CF0;--s4:#13A89A;--s5:#27A85A;--go:#1F9D55;--wait:#C99410;--avoid:#D8404F}
+@media(prefers-color-scheme:dark){:root{--bg:#0C1118;--card:#151C27;--tx:#E8EDF5;--sub:#8F9BAE;--ln:#232C3A;--up:#3DCB72;--dn:#F0566A;--s1:#5C93FF;--s2:#FF8F4D;--s3:#A47DFF;--s4:#2CC5B4;--s5:#3DCB72;--go:#3DCB72;--wait:#E8B93A;--avoid:#F0566A}}
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang SC",sans-serif}
 .w{max-width:520px;margin:auto;padding:20px 14px 40px}
 h1{font-size:15px;color:var(--sub);font-weight:600}
+h2{font-size:14px;color:var(--sub);font-weight:600;margin:18px 2px 8px}
 .px{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
 .sub{font-size:12.5px;color:var(--sub)}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-top:12px}
@@ -13,34 +14,136 @@ h1{font-size:15px;color:var(--sub);font-weight:600}
 .seg button{flex:1;border:1px solid var(--ln);background:var(--card);color:var(--sub);border-radius:10px;padding:8px 0;font:inherit;font-size:14px}
 .seg button.on{color:var(--tx);border-color:var(--tx);font-weight:600}
 svg{width:100%;height:auto;display:block;margin:10px 0 6px}
+.v{border-left:6px solid var(--vc);padding-left:14px}
+.v .big{font-size:24px;font-weight:700;color:var(--vc);line-height:1.2}
+.v p{margin-top:6px}
+.st{display:flex;gap:10px;border-left:5px solid var(--c);margin-top:8px}
+.st .n{flex:1;min-width:0}.st small{display:block;color:var(--sub);font-size:12.5px}
+.chip{align-self:flex-start;font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;color:#fff;background:var(--sub);white-space:nowrap}
+.chip.ok{background:var(--go)}.chip.wt{background:var(--wait)}.chip.no{background:var(--avoid)}
+.plan{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.plan div{border-top:3px solid var(--c);padding-top:6px}
+.plan span{display:block;font-size:12.5px;color:var(--sub)}
+.plan strong{font-size:18px;font-variant-numeric:tabular-nums}
 </style></head><body><div class="w">
 <h1>黄金 XAU/USD（实时）</h1><div class="px" id="px">--</div><div class="sub" id="tm">连接中…</div>
-<div class="card"><div class="seg" id="seg"></div><svg id="ch" viewBox="0 0 360 320"></svg><div class="sub" id="st">加载K线中…</div></div>
-<p class="sub" style="margin-top:12px">这一版只接入真实价格和走势图，下一版加入 ICT 形态识别。</p></div>
+<div class="card"><div class="seg" id="seg"></div><svg id="ch" viewBox="0 0 360 320"></svg><div class="sub" id="st">加载中…</div></div>
+<div class="card v" id="vd"></div>
+<h2>五个环节</h2><div id="sg"></div>
+<h2>交易计划（仅供对照）</h2><div class="card" id="pl"></div>
+<p class="sub" style="margin-top:14px">规则第一版，还没有验证过胜率。请先对照 MT5 图，看标得对不对，不要据此下单。暂未加入新闻因素。</p>
+</div>
 <script>
-var TF="15m",SPOT=null,C=[],src="",KR={"5m":5,"15m":15,"1h":60};
+var TF="15m",SPOT=null,RES=null,H1=null,KR={"5m":5,"15m":15,"1h":60};
 function $(i){return document.getElementById(i)}
 function get(u){var c=new AbortController();setTimeout(function(){c.abort()},10000);return fetch(u,{signal:c.signal}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
-function bin(h){return function(){return get("https://"+h+"/api/v3/klines?symbol=PAXGUSDT&interval="+TF+"&limit=120").then(function(j){return j.map(function(k){return{t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})})}}
-function kra(){return get("https://api.kraken.com/0/public/OHLC?pair=PAXGUSD&interval="+KR[TF]).then(function(j){var k=Object.keys(j.result).filter(function(x){return x!="last"})[0];return j.result[k].slice(-120).map(function(a){return{t:a[0]*1000,o:+a[1],h:+a[2],l:+a[3],c:+a[4]}})})}
-var SRC=[["Binance",bin("api.binance.com")],["Binance 备用",bin("data-api.binance.vision")],["Kraken",kra]];
-function loadC(i){if(i>=SRC.length){$("st").textContent="所有K线来源都连不上，稍后会自动重试";return Promise.resolve()}
-return SRC[i][1]().then(function(c){src=SRC[i][0];C=c;draw()}).catch(function(){return loadC(i+1)})}
-function loadS(){return get("https://api.gold-api.com/price/XAU").then(function(j){SPOT=j.price;$("px").textContent=SPOT.toFixed(2);$("tm").textContent="现货价　更新于 "+new Date().toLocaleTimeString("zh-CN",{hour12:false});draw()}).catch(function(){$("tm").textContent="现货价连接失败，稍后自动重试"})}
-function draw(){
-if(!C.length)return;
-var last=C[C.length-1].c,OFF=SPOT?SPOT-last:0,D=C.slice(-90),lo=1e9,hi=-1e9;
-D.forEach(function(k){lo=Math.min(lo,k.l+OFF);hi=Math.max(hi,k.h+OFF)});
-var pad=(hi-lo)*.05;lo-=pad;hi+=pad;
-var W=360,H=320,R=48,n=D.length,bw=(W-R)/n,s="";
+function bj(j){return j.map(function(k){return{t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}})}
+function kj(j){var k=Object.keys(j.result).filter(function(x){return x!="last"})[0];return j.result[k].map(function(a){return{t:a[0]*1000,o:+a[1],h:+a[2],l:+a[3],c:+a[4]}})}
+function bin(h,tf){return get("https://"+h+"/api/v3/klines?symbol=PAXGUSDT&interval="+tf+"&limit=200").then(bj)}
+function getBin(tf){return bin("api.binance.com",tf).catch(function(){return bin("data-api.binance.vision",tf)}).catch(function(){return null})}
+function getKra(tf){return get("https://api.kraken.com/0/public/OHLC?pair=PAXGUSD&interval="+KR[tf]).then(kj).then(function(a){return a.slice(-200)}).catch(function(){return null})}
+function shift(c){if(!c||!c.length)return null;var f=SPOT?SPOT-c[c.length-1].c:0;return c.map(function(k){return{t:k.t,o:k.o+f,h:k.h+f,l:k.l+f,c:k.c+f}})}
+function merge(a,b){
+if(a&&b){var m={},out=[];b.forEach(function(k){m[k.t]=k});
+a.forEach(function(k){var q=m[k.t];if(q){var o=(k.o+q.o)/2,c=(k.c+q.c)/2;out.push({t:k.t,o:o,c:c,h:Math.max(Math.min(k.h,q.h),o,c),l:Math.min(Math.max(k.l,q.l),o,c)})}});
+if(out.length>30)return{c:out,note:"Binance + Kraken 交叉验证"}}
+var s=a||b;return s?{c:s,note:(a?"Binance":"Kraken")+" 单一来源（未交叉验证）"}:null}
+function fetchTF(tf){return Promise.all([getBin(tf),getKra(tf)]).then(function(r){return merge(shift(r[0]),shift(r[1]))})}
+function loadS(){return get("https://api.gold-api.com/price/XAU").then(function(j){SPOT=j.price;$("px").textContent=SPOT.toFixed(2);$("tm").textContent="现货价　更新于 "+new Date().toLocaleTimeString("zh-CN",{hour12:false})}).catch(function(){$("tm").textContent="现货价连接失败，稍后自动重试"})}
+function isClosed(){var d=new Date(),w=d.getUTCDay(),h=d.getUTCHours();return w==6||(w==0&&h<22)||(w==5&&h>=21)}
+function sess(){var h=new Date().getUTCHours();return h<7?"亚洲":h<13?"伦敦":h<21?"纽约":"收盘前后"}
+function trend(c){var n=c.length;if(n<30)return 0;var av=function(e){var s=0;for(var i=e-20;i<e;i++)s+=c[i].c;return s/20},a=av(n),b=av(n-5),x=c[n-1].c;return x>a&&a>b?1:(x<a&&a<b?-1:0)}
+function mir(c){return c.map(function(k){return{t:k.t,o:-k.o,c:-k.c,h:-k.l,l:-k.h}})}
+function pivots(c,k){var H=[],L=[];for(var i=k;i<c.length-k;i++){var ph=1,pl=1;for(var j=i-k;j<=i+k;j++){if(j==i)continue;if(c[j].h>c[i].h)ph=0;if(c[j].l<c[i].l)pl=0}if(ph)H.push(i);if(pl)L.push(i)}return{H:H,L:L}}
+function detect(c){
+var n=c.length,P=pivots(c,3),sw=null,q,p,j;
+for(q=P.L.length-1;q>=0&&!sw;q--){p=P.L[q];if(n-p>120)break;for(j=p+4;j<n;j++)if(c[j].l<c[p].l){if(n-j<=80)sw={p:p,j:j};break}}
+if(!sw)return null;
+var s=sw.j,e=Math.min(n-1,sw.j+12);for(j=sw.j;j<=e;j++)if(c[j].l<c[s].l)s=j;
+var eql=0;P.L.forEach(function(x){if(x<sw.p&&Math.abs(c[x].l-c[sw.p].l)<=c[sw.p].l*0.0004)eql=1});
+var R={sweep:{p:sw.p,j:sw.j,s:s,lvl:c[sw.p].l,eql:eql}};
+var hi=-1;P.H.forEach(function(x){if(x<s&&s-x<=60)hi=x});
+if(hi<0)return R;
+var lv=c[hi].h,m=-1;for(j=s+1;j<n;j++)if(c[j].c>lv){m=j;break}
+if(m<0)return R;
+R.choch={i:hi,lvl:lv,m:m};
+var bf=null;for(j=hi+1;j<=Math.min(s+1,n-2);j++){var g=c[j-1].l-c[j+1].h;if(g>0&&(!bf||g>bf.g))bf={i:j,g:g,top:c[j-1].l,bot:c[j+1].h}}
+if(!bf)return R;
+var v=-1;for(j=bf.i+2;j<n;j++)if(c[j].c>bf.top){v=j;break}
+if(v<0)return R;
+R.fvg={i:bf.i,top:bf.top,bot:bf.bot,v:v};
+for(j=v+1;j<n;j++)if(c[j].c<bf.bot){R.bad=j;return R}
+var r=-1;for(j=v+1;j<n;j++)if(c[j].l<=bf.top){r=j;break}
+if(r<0)return R;
+R.r=r;
+if(n-1-r>12){R.old=1;return R}
+var en=c[n-1].c,sl=Math.min(bf.bot,c[r].l)-0.5,risk=en-sl,t1=null,t2=-1e9;
+if(risk<=0)return R;
+if(en-bf.top>risk){R.chase=1;return R}
+P.H.forEach(function(x){var h=c[x].h;if(h>en&&(t1===null||h<t1))t1=h});
+for(j=Math.max(0,n-120);j<n;j++)t2=Math.max(t2,c[j].h);
+if(t1===null){R.notgt=1;return R}
+R.plan={e:en,sl:sl,t1:t1,t2:t2>t1?t2:null,rr:(t1-en)/risk};
+return R}
+function unm(R){if(!R)return R;var o=JSON.parse(JSON.stringify(R));
+o.sweep.lvl=-o.sweep.lvl;if(o.choch)o.choch.lvl=-o.choch.lvl;
+if(o.fvg){var t=o.fvg.top;o.fvg.top=-o.fvg.bot;o.fvg.bot=-t}
+if(o.plan){o.plan.e=-o.plan.e;o.plan.sl=-o.plan.sl;o.plan.t1=-o.plan.t1;if(o.plan.t2!=null)o.plan.t2=-o.plan.t2}
+return o}
+function stages(R,dir,tr){
+var W="wt",o="ok",x="no",dn=dir>0?"做多":"做空",S=[];
+S[0]=tr==dir?[o,"H1 趋势与"+dn+"方向一致"]:tr==0?[W,"H1 方向不明显"]:[x,"H1 趋势与"+dn+"方向相反"];
+if(!R){S[1]=[W,"最近没有出现扫流动性"];S[2]=[W,"要先有扫流动性"];S[3]=[W,"要先有结构转变"];S[4]=[W,"暂不评估"];return S}
+S[1]=[o,(R.sweep.eql?"扫掉了等":"扫掉了前")+(dir>0?"低":"高")+"点的止损单"];
+S[2]=R.choch?[o,"价格已突破前一个"+(dir>0?"下跌高点":"上涨低点")]:[W,"等待价格突破前一个"+(dir>0?"下跌高点":"上涨低点")];
+S[3]=R.fvg?(R.bad?[x,"缺口区被反向收破，形态失效"]:R.r!=null?[o,"价格已回踩缺口区"]:[W,"缺口已形成，等待回踩"]):[W,R.choch?"没有找到合格的缺口":"要先有结构转变"];
+S[4]=R.plan?(R.plan.rr>=1.5?[o,"风险回报 1:"+R.plan.rr.toFixed(1)+"，时段："+sess()]:[W,"风险回报只有 1:"+R.plan.rr.toFixed(1)+"，不够"]):R.old?[x,"回踩已过去较久，不追"]:R.chase?[x,"价格已离开缺口区太远，不追"]:R.notgt?[W,"上方没有可用目标"]:[W,"回踩确认后才评估"];
+return S}
+function verdict(S,R,dir){
+var dn=dir>0?"偏多":"偏空";
+if(isClosed())return{c:"wait",t:"休市中",d:"黄金市场休市",w:"周末或收盘时段，PAXG 的价格不可靠，暂不分析。"};
+if(!R)return{c:"wait",t:"暂无机会",d:"观望",w:"最近没有出现扫流动性，继续等待。"};
+var bad=S.filter(function(s){return s[0]=="no"})[0];
+if(S.every(function(s){return s[0]=="ok"}))return{c:"go",t:"符合进场条件",d:dir>0?"做多方向":"做空方向",w:"五个环节全部对齐。再对照 MT5 图确认，规则还没验证过胜率。"};
+if(bad)return{c:"avoid",t:"先避开",d:dn,w:"原因："+bad[1]+"。"};
+return{c:"wait",t:"先等一等",d:dn,w:"形态正在形成，还没有走到进场点，不要提前追。"}}
+var ST=[["大方向","H1","--s1"],["扫流动性","当前周期","--s2"],["结构转变 CHoCH","当前周期","--s3"],["iFVG 回踩","当前周期","--s4"],["进场条件","风险与时段","--s5"]],CH={ok:["ok","已满足"],wt:["wt","等待中"],no:["no","不满足"]};
+function f(n){return n.toFixed(2)}
+function draw(c,R,dir){
+var n=c.length,N=Math.min(100,n),b=n-N,D=c.slice(b),lo=1e9,hi=-1e9;
+D.forEach(function(k){lo=Math.min(lo,k.l);hi=Math.max(hi,k.h)});
+var pd=(hi-lo)*.06;lo-=pd;hi+=pd;
+var W=360,H=320,Rr=48,bw=(W-Rr)/N,s="";
 function y(p){return H-(p-lo)/(hi-lo)*H}
-for(var i=0;i<=4;i++){var p=lo+(hi-lo)*i/4;s+='<line x1="0" x2="'+(W-R)+'" y1="'+y(p)+'" y2="'+y(p)+'" stroke="var(--ln)"/><text x="'+(W-R+4)+'" y="'+(y(p)+4)+'" font-size="11" fill="var(--sub)">'+p.toFixed(1)+'</text>'}
-D.forEach(function(k,i){var x=i*bw+bw/2,col=k.c>=k.o?"var(--up)":"var(--dn)",a=y(k.o+OFF),b=y(k.c+OFF);
-s+='<line x1="'+x+'" x2="'+x+'" y1="'+y(k.h+OFF)+'" y2="'+y(k.l+OFF)+'" stroke="'+col+'"/><rect x="'+(x-bw*.35)+'" width="'+bw*.7+'" y="'+Math.min(a,b)+'" height="'+Math.max(1,Math.abs(a-b))+'" fill="'+col+'"/>'});
-var ly=y(last+OFF);s+='<line x1="0" x2="'+(W-R)+'" y1="'+ly+'" y2="'+ly+'" stroke="var(--tx)" stroke-dasharray="3 3"/>';
-$("ch").innerHTML=s;
-$("st").textContent="K线来源："+src+"（PAXG）｜"+(SPOT?"已按现货价平移 "+(OFF>=0?"+":"")+OFF.toFixed(2):"等待现货价")}
-[["5m","5分钟"],["15m","15分钟"],["1h","1小时"]].forEach(function(t){var b=document.createElement("button");b.textContent=t[1];b.className=t[0]==TF?"on":"";
-b.onclick=function(){TF=t[0];C=[];$("ch").innerHTML="";$("st").textContent="加载K线中…";Array.prototype.forEach.call($("seg").children,function(x){x.className=""});b.className="on";loadC(0)};$("seg").appendChild(b)});
-loadS();loadC(0);setInterval(loadS,15000);setInterval(function(){loadC(0)},30000);
+function x(i){return Math.max(0,i-b)*bw+bw/2}
+function cl(v){return Math.max(0,Math.min(H,v))}
+function ln(x1,x2,p,col,lb,da){if(p<lo||p>hi)return"";var yy=y(p);return'<line x1="'+x1+'" x2="'+x2+'" y1="'+yy+'" y2="'+yy+'" stroke="'+col+'" stroke-width="1.6"'+(da?' stroke-dasharray="4 3"':'')+'/><text x="'+x1+'" y="'+(yy-4)+'" font-size="11" font-weight="600" fill="'+col+'">'+lb+'</text>'}
+for(var i=0;i<=4;i++){var p=lo+(hi-lo)*i/4;s+='<line x1="0" x2="'+(W-Rr)+'" y1="'+y(p)+'" y2="'+y(p)+'" stroke="var(--ln)"/><text x="'+(W-Rr+4)+'" y="'+(y(p)+4)+'" font-size="11" fill="var(--sub)">'+p.toFixed(1)+'</text>'}
+D.forEach(function(k,i){var xx=i*bw+bw/2,col=k.c>=k.o?"var(--up)":"var(--dn)",a=y(k.o),q=y(k.c);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+y(k.h)+'" y2="'+y(k.l)+'" stroke="'+col+'"/><rect x="'+(xx-bw*.35)+'" width="'+bw*.7+'" y="'+Math.min(a,q)+'" height="'+Math.max(1,Math.abs(a-q))+'" fill="'+col+'"/>'});
+if(R){
+if(R.fvg){var yt=cl(y(R.fvg.top)),yb=cl(y(R.fvg.bot)),x0=x(R.fvg.i-1);s+='<rect x="'+x0+'" y="'+yt+'" width="'+(W-Rr-x0)+'" height="'+Math.max(2,yb-yt)+'" fill="var(--s4)" fill-opacity=".2" stroke="var(--s4)"/><text x="'+(x0+3)+'" y="'+(yt-3)+'" font-size="11" font-weight="600" fill="var(--s4)">iFVG</text>'}
+s+=ln(x(R.sweep.p),x(R.sweep.j)+14,R.sweep.lvl,"var(--s2)",R.sweep.eql?"扫等"+(dir>0?"低":"高")+"点":"扫流动性",1);
+if(R.choch)s+=ln(x(R.choch.i),x(R.choch.m),R.choch.lvl,"var(--s3)","CHoCH");
+if(R.plan){var x1=x(n-25),x2=W-Rr;s+=ln(x1,x2,R.plan.sl,"var(--avoid)","止损",1)+ln(x1,x2,R.plan.t1,"var(--s5)","目标1",1);var ey=y(R.plan.e),ex=x(n-1);s+='<polygon points="'+ex+','+ey+' '+(ex-6)+','+(ey+11)+' '+(ex+6)+','+(ey+11)+'" fill="var(--s5)" transform="'+(dir>0?'':'rotate(180 '+ex+' '+(ey+5)+')')+'"/>'}}
+var ly=y(c[n-1].c);s+='<line x1="0" x2="'+(W-Rr)+'" y1="'+ly+'" y2="'+ly+'" stroke="var(--tx)" stroke-dasharray="3 3"/>';
+$("ch").innerHTML=s}
+function render(){
+if(!RES)return;
+var c=RES.c,tr=H1?trend(H1.c):0,A=detect(c),B=unm(detect(mir(c)));
+var sc=function(R){return R?1+(R.choch?1:0)+(R.fvg?1:0)+(R.plan?1:0):0};
+var dir=1,R=A;
+if(sc(B)>sc(A)||(sc(B)==sc(A)&&B&&A&&B.sweep.j>A.sweep.j)){dir=-1;R=B}
+if(!R)dir=tr==-1?-1:1;
+var S=stages(R,dir,tr),V=verdict(S,R,dir);
+draw(c,R,dir);
+$("st").textContent=RES.note+"｜已按现货价平移｜图例：橙=扫流动性 紫=CHoCH 青=iFVG 绿=目标";
+var vd=$("vd");vd.style.setProperty("--vc","var(--"+V.c+")");
+vd.innerHTML='<div class="big">'+V.t+'</div><div class="sub">'+V.d+'</div><p>'+V.w+'</p>';
+$("sg").innerHTML=ST.map(function(m,i){var r=S[i],h=CH[r[0]];return'<div class="card st" style="--c:var('+m[2]+')"><div class="n"><b>'+m[0]+'</b><small>'+m[1]+'</small><div>'+r[1]+'</div></div><span class="chip '+h[0]+'">'+h[1]+'</span></div>'}).join("");
+var p=R&&R.plan;
+$("pl").innerHTML=p?'<div class="plan"><div style="--c:var(--s4)"><span>参考进场价</span><strong>'+f(p.e)+'</strong></div><div style="--c:var(--avoid)"><span>止损</span><strong>'+f(p.sl)+'</strong></div><div style="--c:var(--s5)"><span>目标 1</span><strong>'+f(p.t1)+'</strong></div><div style="--c:var(--s5)"><span>目标 2</span><strong>'+(p.t2?f(p.t2):"无")+'</strong></div></div><p class="sub" style="margin-top:10px">到目标 1 的风险回报 1 : '+p.rr.toFixed(1)+'</p>':'<p class="sub">现在没有交易计划。回踩确认后，这里会显示参考进场价、止损和目标。</p>'}
+function refresh(){return loadS().then(function(){return Promise.all([fetchTF(TF),fetchTF("1h")])}).then(function(r){RES=r[0];H1=r[1];if(!RES)$("st").textContent="K线来源都连不上，稍后自动重试";render()}).catch(function(){})}
+[["5m","5分钟"],["15m","15分钟"],["1h","1小时"]].forEach(function(t){var bt=document.createElement("button");bt.textContent=t[1];bt.className=t[0]==TF?"on":"";
+bt.onclick=function(){TF=t[0];RES=null;$("ch").innerHTML="";$("st").textContent="加载中…";Array.prototype.forEach.call($("seg").children,function(z){z.className=""});bt.className="on";refresh()};$("seg").appendChild(bt)});
+refresh();setInterval(loadS,15000);setInterval(refresh,30000);
 </script></body></html>
