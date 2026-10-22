@@ -8,8 +8,8 @@ body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang 
 h1{font-size:18px}h2{font-size:14px;color:var(--sub);font-weight:600;margin:18px 2px 8px}
 .sub{font-size:12.5px;color:var(--sub)}
 .card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-top:12px}
-.seg{display:flex;gap:6px;margin-top:12px}
-.seg button{flex:1;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 2px;font:inherit;font-size:13.5px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.seg button{flex:1 1 30%;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 2px;font:inherit;font-size:13.5px}
 .g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .g div{border-top:3px solid var(--s1);padding-top:6px}
 .g span{display:block;font-size:12px;color:var(--sub)}.g strong{font-size:18px;font-variant-numeric:tabular-nums}
@@ -20,13 +20,13 @@ svg{width:100%;height:auto;display:block}
 .vd{font-size:16px;font-weight:600}
 </style></head><body><div class="w">
 <h1>ICT 形态历史回看</h1>
-<p class="sub">把过去所有出现过的形态找出来，看进场后赚还是亏。已扣除每单 0.5 美元的点差和滑点。</p>
+<p class="sub">把过去所有出现过的形态找出来，看进场后赚还是亏。已扣除每单 0.5 美元的点差和滑点。范围越长，结论越可靠，3 年可能要等几十秒。</p>
 <div class="seg" id="seg"></div>
 <div class="sub" id="stat" style="margin-top:10px">选一个范围开始。</div>
 <div id="out"></div>
 </div>
 <script>
-var COST=0.5,TFMS={"15m":9e5,"5m":3e5},PRE=[["15m",90,"15分钟 90天"],["15m",180,"15分钟 180天"],["5m",30,"5分钟 30天"]],BUSY=0;
+var COST=0.5,TFMS={"15m":9e5,"5m":3e5},PRE=[["15m",90,"15分钟 90天"],["15m",180,"15分钟 180天"],["15m",365,"15分钟 1年"],["15m",730,"15分钟 2年"],["15m",1095,"15分钟 3年"],["5m",30,"5分钟 30天"],["5m",90,"5分钟 90天"]],BUSY=0;
 function $(i){return document.getElementById(i)}
 function get(u){var c=new AbortController();setTimeout(function(){c.abort()},15000);return fetch(u,{signal:c.signal}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
 function closedAt(ms){var d=new Date(ms),w=d.getUTCDay(),h=d.getUTCHours();return w==6||(w==0&&h<22)||(w==5&&h>=21)}
@@ -96,36 +96,41 @@ if(!used[key]){used[key]=1;var sm=sim(A,i,R.plan.e,R.plan.sl,R.plan.t1);ev.push(
 i++}
 if(i<n-1){pg(i/n);setTimeout(chunk,0)}else done(ev)}
 chunk()}
-function base(A,ev){var r=[],n=A.length;if(n<400)return r;ev.forEach(function(e){for(var q=0;q<3;q++){var k=200+Math.floor(Math.random()*(n-300)),en=A[k].c;r.push({r:sim(A,k,en,en-e.risk,en+e.dt).r})}});return r}
-function stat(L){var n=L.length;if(!n)return null;var w=0,s=0,gp=0,gl=0,eq=0,pk=0,dd=0;L.forEach(function(e){s+=e.r;if(e.r>0){w++;gp+=e.r}else gl-=e.r;eq+=e.r;pk=Math.max(pk,eq);dd=Math.max(dd,pk-eq)});return{n:n,win:w/n,avg:s/n,tot:s,pf:gl?gp/gl:99,dd:dd}}
+function base(A,ev){var r=[],n=A.length;if(n<400)return r;ev.forEach(function(e){for(var q=0;q<8;q++){var k=200+Math.floor(Math.random()*(n-300)),en=A[k].c;r.push({r:sim(A,k,en,en-e.risk,en+e.dt).r})}});return r}
+function stat(L){var n=L.length;if(!n)return null;var w=0,s=0,sq=0,gp=0,gl=0,eq=0,pk=0,dd=0;L.forEach(function(e){s+=e.r;sq+=e.r*e.r;if(e.r>0){w++;gp+=e.r}else gl-=e.r;eq+=e.r;pk=Math.max(pk,eq);dd=Math.max(dd,pk-eq)});var m=s/n,sd=n>1?Math.sqrt(Math.max(0,(sq-n*m*m)/(n-1))):0;return{n:n,win:w/n,avg:m,tot:s,pf:gl?gp/gl:99,dd:dd,sd:sd,ci:1.96*sd/Math.sqrt(n)}}
 function grp(E,fn){var m={};E.forEach(function(e){var k=fn(e);(m[k]=m[k]||[]).push(e)});return Object.keys(m).sort().map(function(k){return[k,stat(m[k])]})}
 function cls(v){return v>0?"p":"n"}
 function tbl(rows){return'<table><tr><th></th><th>单数</th><th>胜率</th><th>平均R</th></tr>'+rows.map(function(r){var s=r[1];return'<tr><td>'+r[0]+'</td><td>'+s.n+'</td><td>'+Math.round(s.win*100)+'%</td><td class="'+cls(s.avg)+'">'+s.avg.toFixed(2)+'</td></tr>'}).join("")+'</table>'}
-function finish(E,Bs,key){
+function fm(v){return(v>=0?"+":"")+v.toFixed(2)}
+function finish(E,BL,BS,key){
 E.sort(function(a,b){return a.t-b.t});
 try{localStorage.setItem("gict_ev_"+key,JSON.stringify(E))}catch(e){}
 var S=stat(E);
 if(!S){$("out").innerHTML='<div class="card">这个范围内没有找到符合条件的形态。</div>';$("stat").textContent="完成";BUSY=0;return}
-var B=stat(Bs),cut=Math.floor(E.length*.7),S1=stat(E.slice(0,cut)),S2=stat(E.slice(cut)),eq=0,pts=[];
-E.forEach(function(e,i){eq+=e.r;pts.push(eq)});
+var B=stat(BL.concat(BS)),cut=Math.floor(E.length*.7),S1=stat(E.slice(0,cut)),S2=stat(E.slice(cut)),eq=0,pts=[],mc=0;
+E.forEach(function(e){eq+=e.r;pts.push(eq);mc+=COST/e.risk});mc/=E.length;
 var mn=Math.min(0,Math.min.apply(null,pts)),mx=Math.max(0,Math.max.apply(null,pts)),sp=(mx-mn)||1;
 var pl=pts.map(function(v,i){return(i/Math.max(1,pts.length-1)*340).toFixed(1)+","+(130-(v-mn)/sp*120).toFixed(1)}).join(" ");
-var z=130-(0-mn)/sp*120,msg;
+var z=130-(0-mn)/sp*120,msg,need=S.sd>0?Math.ceil(Math.pow(1.96*S.sd/0.2,2)):0;
 if(S.n<30)msg="样本只有 "+S.n+" 单，现在下结论还太早。";
 else if(S.avg<=0)msg="扣掉成本后，平均每单是亏的。";
+else if(S.avg-S.ci<=0)msg="平均值是正的，但 95% 误差范围包含 0，还不能证明有优势。";
 else if(B&&S.avg<B.avg+0.15)msg="没有明显优于随机进场，这个形态目前看不出优势。";
 else if(S1&&S2&&S2.avg<=0)msg="前面部分赚钱，但最近一段不赚钱，表现不稳定。";
-else msg="初步看到优势，但样本有限，还需要更多数据和后续验证。";
+else msg="初步看到优势，但还需要更多数据和后续验证。";
+var rows=[["做多",stat(E.filter(function(e){return e.d>0})),stat(BL)],["做空",stat(E.filter(function(e){return e.d<0})),stat(BS)]].filter(function(r){return r[1]});
+var dt='<table><tr><th></th><th>单数</th><th>ICT 平均R</th><th>随机对照</th></tr>'+rows.map(function(r){var b=r[2];return'<tr><td>'+r[0]+'</td><td>'+r[1].n+'</td><td class="'+cls(r[1].avg)+'">'+r[1].avg.toFixed(2)+'</td><td class="'+(b?cls(b.avg):"")+'">'+(b?b.avg.toFixed(2):"-")+'</td></tr>'}).join("")+'</table>';
 $("out").innerHTML=
 '<div class="card"><div class="vd">'+msg+'</div></div>'+
 '<div class="card"><div class="g"><div><span>总单数</span><strong>'+S.n+'</strong></div><div><span>胜率</span><strong>'+Math.round(S.win*100)+'%</strong></div><div><span>平均每单</span><strong class="'+cls(S.avg)+'">'+S.avg.toFixed(2)+'R</strong></div><div><span>累计</span><strong class="'+cls(S.tot)+'">'+S.tot.toFixed(1)+'R</strong></div><div><span>最大回撤</span><strong>'+S.dd.toFixed(1)+'R</strong></div><div><span>盈亏比</span><strong>'+S.pf.toFixed(2)+'</strong></div></div>'+
-'<p class="sub" style="margin-top:10px">R 是一单的止损距离。+1R 是赚了和止损一样多，−1R 是止损。</p></div>'+
-'<h2>对照：随机时间进场（同样的止损和目标）</h2><div class="card">'+(B?'平均每单 <b class="'+cls(B.avg)+'">'+B.avg.toFixed(2)+'R</b>，胜率 '+Math.round(B.win*100)+'%（'+B.n+' 次模拟）':'数据不足')+'</div>'+
+'<p class="sub" style="margin-top:10px">平均每单的 95% 误差范围：'+fm(S.avg-S.ci)+' 到 '+fm(S.avg+S.ci)+'R。成本平均每单约吃掉 '+mc.toFixed(2)+'R。要可靠看出 +0.2R 的优势，按现在的波动大约需要 '+need+' 单（现在 '+S.n+' 单）。</p>'+
+'<p class="sub" style="margin-top:6px">R 是一单的止损距离。+1R 是赚了和止损一样多，−1R 是止损。</p></div>'+
+'<h2>对照：随机时间进场（同方向、同样的止损和目标）</h2><div class="card">'+(B?'平均每单 <b class="'+cls(B.avg)+'">'+B.avg.toFixed(2)+'R</b>，胜率 '+Math.round(B.win*100)+'%（'+B.n+' 次模拟）':'数据不足')+'</div>'+
+'<h2>按方向（对照的是同方向的随机进场）</h2><div class="card">'+dt+'</div>'+
 '<h2>前 70% 与后 30%（检查是否稳定）</h2><div class="card">'+tbl([["前 70%",S1],["后 30%",S2]].filter(function(r){return r[1]}))+'</div>'+
 '<h2>累计盈亏曲线（R）</h2><div class="card"><svg viewBox="0 0 340 140"><line x1="0" x2="340" y1="'+z.toFixed(1)+'" y2="'+z.toFixed(1)+'" stroke="var(--ln)"/><polyline points="'+pl+'" fill="none" stroke="var(--s1)" stroke-width="2"/></svg></div>'+
 '<h2>按时段</h2><div class="card">'+tbl(grp(E,function(e){return sess(e.f.hr)}))+'</div>'+
 '<h2>按 H1 方向是否一致</h2><div class="card">'+tbl(grp(E,function(e){return e.f.al?"一致":"不一致或不明"}))+'</div>'+
-'<h2>按方向</h2><div class="card">'+tbl(grp(E,function(e){return e.d>0?"做多":"做空"}))+'</div>'+
 '<p class="sub" style="margin-top:14px">数据来自 Binance 的 PAXG（单一来源，没有交叉验证），已排除休市时段，并对异常长影线做了限幅。已保存 '+E.length+' 条记录（每条含 14 项特征）供之后的 AI 学习。分组后样本很少时，数字波动大，不要过度解读。</p>';
 $("stat").textContent="完成";BUSY=0}
 function run(i){
@@ -136,7 +141,7 @@ $("stat").textContent="分析形态（做多）…";
 scan(A,H,1,tf,function(x){$("stat").textContent="分析形态（做多）"+Math.round(x*100)+"%"},function(L){
 scan(M,H,-1,tf,function(x){$("stat").textContent="分析形态（做空）"+Math.round(x*100)+"%"},function(S){
 $("stat").textContent="统计中…";
-finish(L.concat(S),base(A,L).concat(base(M,S)),p[0]+"_"+p[1])})})
+finish(L.concat(S),base(A,L),base(M,S),p[0]+"_"+p[1])})})
 }).catch(function(e){$("stat").textContent="下载失败，请稍后重试（"+e.message+"）";BUSY=0})}
 PRE.forEach(function(p,i){var b=document.createElement("button");b.textContent=p[2];b.onclick=function(){run(i)};$("seg").appendChild(b)});
 </script></body></html>
