@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ICT 历史回看</title>
+<style>
+:root{--bg:#F4F6FA;--card:#fff;--tx:#131A26;--sub:#5B6677;--ln:#E1E6EE;--up:#1F9D55;--dn:#D8404F;--s1:#3F7BEA}
+@media(prefers-color-scheme:dark){:root{--bg:#0C1118;--card:#151C27;--tx:#E8EDF5;--sub:#8F9BAE;--ln:#232C3A;--up:#3DCB72;--dn:#F0566A;--s1:#5C93FF}}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang SC",sans-serif}
+.w{max-width:520px;margin:auto;padding:20px 14px 40px}
+h1{font-size:18px}h2{font-size:14px;color:var(--sub);font-weight:600;margin:18px 2px 8px}
+.sub{font-size:12.5px;color:var(--sub)}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-top:12px}
+.seg{display:flex;gap:6px;margin-top:12px}
+.seg button{flex:1;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 2px;font:inherit;font-size:13.5px}
+.g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g div{border-top:3px solid var(--s1);padding-top:6px}
+.g span{display:block;font-size:12px;color:var(--sub)}.g strong{font-size:18px;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:6px 4px;text-align:right;border-bottom:1px solid var(--ln)}th{color:var(--sub);font-weight:500;font-size:12.5px}td:first-child,th:first-child{text-align:left}
+.p{color:var(--up)}.n{color:var(--dn)}
+svg{width:100%;height:auto;display:block}
+.vd{font-size:16px;font-weight:600}
+</style></head><body><div class="w">
+<h1>ICT 形态历史回看</h1>
+<p class="sub">把过去所有出现过的形态找出来，看进场后赚还是亏。已扣除每单 0.5 美元的点差和滑点。</p>
+<div class="seg" id="seg"></div>
+<div class="sub" id="stat" style="margin-top:10px">选一个范围开始。</div>
+<div id="out"></div>
+</div>
+<script>
+var COST=0.5,TFMS={"15m":9e5,"5m":3e5},PRE=[["15m",90,"15分钟 90天"],["15m",180,"15分钟 180天"],["5m",30,"5分钟 30天"]],BUSY=0;
+function $(i){return document.getElementById(i)}
+function get(u){var c=new AbortController();setTimeout(function(){c.abort()},15000);return fetch(u,{signal:c.signal}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function closedAt(ms){var d=new Date(ms),w=d.getUTCDay(),h=d.getUTCHours();return w==6||(w==0&&h<22)||(w==5&&h>=21)}
+function sess(h){return h<7?"亚洲":h<13?"伦敦":h<21?"纽约":"其他"}
+function mirr(k){return{t:k.t,o:-k.o,c:-k.c,h:-k.l,l:-k.h,v:k.v}}
+function pivots(c,k){var H=[],L=[];for(var i=k;i<c.length-k;i++){var ph=1,pl=1;for(var j=i-k;j<=i+k;j++){if(j==i)continue;if(c[j].h>c[i].h)ph=0;if(c[j].l<c[i].l)pl=0}if(ph)H.push(i);if(pl)L.push(i)}return{H:H,L:L}}
+function detect(c){
+var n=c.length,P=pivots(c,3),sw=null,q,p,j;
+for(q=P.L.length-1;q>=0&&!sw;q--){p=P.L[q];if(n-p>120)break;for(j=p+4;j<n;j++)if(c[j].l<c[p].l){if(n-j<=80)sw={p:p,j:j};break}}
+if(!sw)return null;
+var s=sw.j,e=Math.min(n-1,sw.j+12);for(j=sw.j;j<=e;j++)if(c[j].l<c[s].l)s=j;
+var eql=0;P.L.forEach(function(x){if(x<sw.p&&Math.abs(c[x].l-c[sw.p].l)<=c[sw.p].l*0.0004)eql=1});
+var R={sweep:{p:sw.p,j:sw.j,s:s,lvl:c[sw.p].l,eql:eql}};
+var hi=-1;P.H.forEach(function(x){if(x<s&&s-x<=60)hi=x});
+if(hi<0)return R;
+var lv=c[hi].h,m=-1;for(j=s+1;j<n;j++)if(c[j].c>lv){m=j;break}
+if(m<0)return R;
+R.choch={i:hi,lvl:lv,m:m};
+var bf=null;for(j=hi+1;j<=Math.min(s+1,n-2);j++){var g=c[j-1].l-c[j+1].h;if(g>0&&(!bf||g>bf.g))bf={i:j,g:g,top:c[j-1].l,bot:c[j+1].h}}
+if(!bf)return R;
+var v=-1;for(j=bf.i+2;j<n;j++)if(c[j].c>bf.top){v=j;break}
+if(v<0)return R;
+R.fvg={i:bf.i,top:bf.top,bot:bf.bot,v:v};
+for(j=v+1;j<n;j++)if(c[j].c<bf.bot){R.bad=j;return R}
+var r=-1;for(j=v+1;j<n;j++)if(c[j].l<=bf.top){r=j;break}
+if(r<0)return R;
+R.r=r;
+if(n-1-r>12){R.old=1;return R}
+var en=c[n-1].c,sl=Math.min(bf.bot,c[r].l)-0.5,risk=en-sl,t1=null,t2=-1e9;
+if(risk<=0)return R;
+if(en-bf.top>risk){R.chase=1;return R}
+P.H.forEach(function(x){var h=c[x].h;if(h>en&&(t1===null||h<t1))t1=h});
+for(j=Math.max(0,n-120);j<n;j++)t2=Math.max(t2,c[j].h);
+if(t1===null){R.notgt=1;return R}
+R.plan={e:en,sl:sl,t1:t1,t2:t2>t1?t2:null,rr:(t1-en)/risk};
+return R}
+function loadHist(tf,days,cb){
+var need=Math.round(days*864e5/TFMS[tf]),all=[],end=Date.now(),hosts=["api.binance.com","data-api.binance.vision"],hi=0;
+function step(){return get("https://"+hosts[hi]+"/api/v3/klines?symbol=PAXGUSDT&interval="+tf+"&limit=1000&endTime="+end).then(function(j){
+if(!j.length)return all;
+var c=j.map(function(k){return{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}});
+all=c.concat(all);end=c[0].t-1;cb(Math.min(all.length,need),need);
+return all.length>=need?all.slice(-need):step()}).catch(function(e){if(hi<hosts.length-1&&!all.length){hi++;return step()}if(all.length>100)return all;throw e})}
+return step()}
+function prep(c){c=c.filter(function(k){return !closedAt(k.t)});var s=0,q=[];
+c.forEach(function(k,i){if(i>=20){var a=s/20;k.h=Math.min(k.h,Math.max(k.o,k.c)+8*a);k.l=Math.max(k.l,Math.min(k.o,k.c)-8*a)}
+q.push(k.h-k.l);s+=q[i];if(i>=20)s-=q[i-20]});return c}
+function hourly(c){var o=[],last=-1;c.forEach(function(k){var h=Math.floor(k.t/36e5)*36e5;if(h!=last){o.push({t:h,c:k.c});last=h}else o[o.length-1].c=k.c});return o}
+function h1At(H,ms){var lo=0,hi=H.length;while(lo<hi){var m=(lo+hi)>>1;if(H[m].t+36e5<=ms)lo=m+1;else hi=m}return lo}
+function trendK(H,k){if(k<30)return 0;var av=function(e){var s=0;for(var i=e-20;i<e;i++)s+=H[i].c;return s/20},a=av(k),b=av(k-5),x=H[k-1].c;return x>a&&a>b?1:(x<a&&a<b?-1:0)}
+function sim(c,i,en,sl,tp){var risk=en-sl,end=Math.min(c.length-1,i+96);
+for(var j=i+1;j<=end;j++){if(c[j].l<=sl)return{r:(-risk-COST)/risk,j:j};if(c[j].h>=tp)return{r:(tp-en-COST)/risk,j:j}}
+return{r:(c[end].c-en-COST)/risk,j:end}}
+function rec(w,R,d,H,tfms,sm){
+var n=w.length,k=w[n-1],atr=0,vs=0,j,P=R.plan,dt=new Date(k.t),risk=P.e-P.sl;
+for(j=n-14;j<n;j++)atr+=w[j].h-w[j].l;atr/=14;
+for(j=n-21;j<n-1;j++)vs+=w[j].v;vs/=20;
+var tk=trendK(H,h1At(H,k.t+tfms));
+return{t:k.t,d:d,r:sm.r,risk:risk,dt:P.t1-P.e,f:{hr:dt.getUTCHours(),wd:dt.getUTCDay(),atr:atr,sd:(R.sweep.lvl-w[R.sweep.s].l)/atr,eql:R.sweep.eql,ch:(w[R.choch.m].c-R.choch.lvl)/atr,fg:(R.fvg.top-R.fvg.bot)/atr,s2c:R.choch.m-R.sweep.s,c2e:n-1-R.choch.m,rt:(R.fvg.top-w[R.r].l)/(R.fvg.top-R.fvg.bot),rk:risk/atr,rr:P.rr,al:tk==d?1:0,vx:vs?k.v/vs:1}}}
+function scan(A,H,d,tfms,pg,done){
+var ev=[],used={},i=200,n=A.length;
+function chunk(){var t0=Date.now();
+while(i<n-1&&Date.now()-t0<30){
+var w=A.slice(i-199,i+1),R=detect(w);
+if(R&&R.plan&&R.plan.rr>=1.5){var key=(i-199+R.sweep.p)+"_"+(i-199+R.fvg.i);
+if(!used[key]){used[key]=1;var sm=sim(A,i,R.plan.e,R.plan.sl,R.plan.t1);ev.push(rec(w,R,d,H,tfms,sm));i=sm.j;continue}}
+i++}
+if(i<n-1){pg(i/n);setTimeout(chunk,0)}else done(ev)}
+chunk()}
+function base(A,ev){var r=[],n=A.length;if(n<400)return r;ev.forEach(function(e){for(var q=0;q<3;q++){var k=200+Math.floor(Math.random()*(n-300)),en=A[k].c;r.push({r:sim(A,k,en,en-e.risk,en+e.dt).r})}});return r}
+function stat(L){var n=L.length;if(!n)return null;var w=0,s=0,gp=0,gl=0,eq=0,pk=0,dd=0;L.forEach(function(e){s+=e.r;if(e.r>0){w++;gp+=e.r}else gl-=e.r;eq+=e.r;pk=Math.max(pk,eq);dd=Math.max(dd,pk-eq)});return{n:n,win:w/n,avg:s/n,tot:s,pf:gl?gp/gl:99,dd:dd}}
+function grp(E,fn){var m={};E.forEach(function(e){var k=fn(e);(m[k]=m[k]||[]).push(e)});return Object.keys(m).sort().map(function(k){return[k,stat(m[k])]})}
+function cls(v){return v>0?"p":"n"}
+function tbl(rows){return'<table><tr><th></th><th>单数</th><th>胜率</th><th>平均R</th></tr>'+rows.map(function(r){var s=r[1];return'<tr><td>'+r[0]+'</td><td>'+s.n+'</td><td>'+Math.round(s.win*100)+'%</td><td class="'+cls(s.avg)+'">'+s.avg.toFixed(2)+'</td></tr>'}).join("")+'</table>'}
+function finish(E,Bs,key){
+E.sort(function(a,b){return a.t-b.t});
+try{localStorage.setItem("gict_ev_"+key,JSON.stringify(E))}catch(e){}
+var S=stat(E);
+if(!S){$("out").innerHTML='<div class="card">这个范围内没有找到符合条件的形态。</div>';$("stat").textContent="完成";BUSY=0;return}
+var B=stat(Bs),cut=Math.floor(E.length*.7),S1=stat(E.slice(0,cut)),S2=stat(E.slice(cut)),eq=0,pts=[];
+E.forEach(function(e,i){eq+=e.r;pts.push(eq)});
+var mn=Math.min(0,Math.min.apply(null,pts)),mx=Math.max(0,Math.max.apply(null,pts)),sp=(mx-mn)||1;
+var pl=pts.map(function(v,i){return(i/Math.max(1,pts.length-1)*340).toFixed(1)+","+(130-(v-mn)/sp*120).toFixed(1)}).join(" ");
+var z=130-(0-mn)/sp*120,msg;
+if(S.n<30)msg="样本只有 "+S.n+" 单，现在下结论还太早。";
+else if(S.avg<=0)msg="扣掉成本后，平均每单是亏的。";
+else if(B&&S.avg<B.avg+0.15)msg="没有明显优于随机进场，这个形态目前看不出优势。";
+else if(S1&&S2&&S2.avg<=0)msg="前面部分赚钱，但最近一段不赚钱，表现不稳定。";
+else msg="初步看到优势，但样本有限，还需要更多数据和后续验证。";
+$("out").innerHTML=
+'<div class="card"><div class="vd">'+msg+'</div></div>'+
+'<div class="card"><div class="g"><div><span>总单数</span><strong>'+S.n+'</strong></div><div><span>胜率</span><strong>'+Math.round(S.win*100)+'%</strong></div><div><span>平均每单</span><strong class="'+cls(S.avg)+'">'+S.avg.toFixed(2)+'R</strong></div><div><span>累计</span><strong class="'+cls(S.tot)+'">'+S.tot.toFixed(1)+'R</strong></div><div><span>最大回撤</span><strong>'+S.dd.toFixed(1)+'R</strong></div><div><span>盈亏比</span><strong>'+S.pf.toFixed(2)+'</strong></div></div>'+
+'<p class="sub" style="margin-top:10px">R 是一单的止损距离。+1R 是赚了和止损一样多，−1R 是止损。</p></div>'+
+'<h2>对照：随机时间进场（同样的止损和目标）</h2><div class="card">'+(B?'平均每单 <b class="'+cls(B.avg)+'">'+B.avg.toFixed(2)+'R</b>，胜率 '+Math.round(B.win*100)+'%（'+B.n+' 次模拟）':'数据不足')+'</div>'+
+'<h2>前 70% 与后 30%（检查是否稳定）</h2><div class="card">'+tbl([["前 70%",S1],["后 30%",S2]].filter(function(r){return r[1]}))+'</div>'+
+'<h2>累计盈亏曲线（R）</h2><div class="card"><svg viewBox="0 0 340 140"><line x1="0" x2="340" y1="'+z.toFixed(1)+'" y2="'+z.toFixed(1)+'" stroke="var(--ln)"/><polyline points="'+pl+'" fill="none" stroke="var(--s1)" stroke-width="2"/></svg></div>'+
+'<h2>按时段</h2><div class="card">'+tbl(grp(E,function(e){return sess(e.f.hr)}))+'</div>'+
+'<h2>按 H1 方向是否一致</h2><div class="card">'+tbl(grp(E,function(e){return e.f.al?"一致":"不一致或不明"}))+'</div>'+
+'<h2>按方向</h2><div class="card">'+tbl(grp(E,function(e){return e.d>0?"做多":"做空"}))+'</div>'+
+'<p class="sub" style="margin-top:14px">数据来自 Binance 的 PAXG（单一来源，没有交叉验证），已排除休市时段，并对异常长影线做了限幅。已保存 '+E.length+' 条记录（每条含 14 项特征）供之后的 AI 学习。分组后样本很少时，数字波动大，不要过度解读。</p>';
+$("stat").textContent="完成";BUSY=0}
+function run(i){
+if(BUSY)return;BUSY=1;$("out").innerHTML="";var p=PRE[i],tf=TFMS[p[0]];$("stat").textContent="下载历史数据…";
+loadHist(p[0],p[1],function(a,b){$("stat").textContent="下载历史数据 "+a+" / "+b}).then(function(c){
+var A=prep(c),M=A.map(mirr),H=hourly(A);
+$("stat").textContent="分析形态（做多）…";
+scan(A,H,1,tf,function(x){$("stat").textContent="分析形态（做多）"+Math.round(x*100)+"%"},function(L){
+scan(M,H,-1,tf,function(x){$("stat").textContent="分析形态（做空）"+Math.round(x*100)+"%"},function(S){
+$("stat").textContent="统计中…";
+finish(L.concat(S),base(A,L).concat(base(M,S)),p[0]+"_"+p[1])})})
+}).catch(function(e){$("stat").textContent="下载失败，请稍后重试（"+e.message+"）";BUSY=0})}
+PRE.forEach(function(p,i){var b=document.createElement("button");b.textContent=p[2];b.onclick=function(){run(i)};$("seg").appendChild(b)});
+</script></body></html>
