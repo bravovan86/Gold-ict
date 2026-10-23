@@ -1,0 +1,132 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>足迹检验</title>
+<style>
+:root{--bg:#F4F6FA;--card:#fff;--tx:#131A26;--sub:#5B6677;--ln:#E1E6EE;--up:#1F9D55;--dn:#D8404F;--s1:#3F7BEA}
+@media(prefers-color-scheme:dark){:root{--bg:#0C1118;--card:#151C27;--tx:#E8EDF5;--sub:#8F9BAE;--ln:#232C3A;--up:#3DCB72;--dn:#F0566A;--s1:#5C93FF}}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang SC",sans-serif}
+.w{max-width:520px;margin:auto;padding:20px 14px 40px}
+h1{font-size:18px}h2{font-size:14px;color:var(--sub);font-weight:600;margin:18px 2px 8px}
+.sub{font-size:12.5px;color:var(--sub)}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-top:12px}
+.seg{display:flex;gap:6px;margin-top:12px}
+.seg button,.rv{flex:1;border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 4px;font:inherit;font-size:13.5px}
+.rv{width:100%;margin-top:10px;border-color:var(--s1)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+td,th{padding:5px 3px;text-align:right;border-bottom:1px solid var(--ln)}th{color:var(--sub);font-weight:500}td:first-child,th:first-child{text-align:left}
+.p{color:var(--up)}.n{color:var(--dn)}
+.vd{font-size:16px;font-weight:600}
+svg{width:100%;height:auto;display:block}
+</style></head><body><div class="w">
+<h1>聪明钱足迹检验</h1>
+<p class="sub">用 3 年的 15 分钟数据，逐个检验动能、成交量、买卖差（主动买入与卖出的差）、成交量热力图这些足迹：出现之后的 4 小时里，价格是否真的更容易往某个方向走。已扣除每单 0.5 美元成本。前面的年份用来筛选，最后一年锁定，只有通过筛选的足迹才能揭晓一次。</p>
+<div class="seg" id="seg"></div>
+<div class="sub" id="stat" style="margin-top:10px">选一个范围开始。</div>
+<div id="out"></div>
+</div>
+<script>
+var COST=0.5,TF=9e5,HZ=16,GAP=16,ZT=3.5,BUSY=0,RES=null;
+var FN={rsi:"RSI(14)",ao:"动量 AO",roc:"12 根涨跌幅",rv:"相对成交量",dr:"本根买卖差",f12:"近 3 小时买卖差",f48:"近 12 小时买卖差",ats:"平均单笔大小（大单代理）",div:"价格与买卖差背离",poc:"离成交密集区的距离",dens:"当前价位成交密度",sess:"时段"};
+var FK=["rsi","ao","roc","rv","dr","f12","f48","ats","div","poc","dens","sess"],BL=["最低20%","偏低","中间","偏高","最高20%"],SL=["亚洲","伦敦","纽约","其他"];
+function $(i){return document.getElementById(i)}
+function get(u){var c=new AbortController();setTimeout(function(){c.abort()},15000);return fetch(u,{signal:c.signal}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
+function closedAt(ms){var d=new Date(ms),w=d.getUTCDay(),h=d.getUTCHours();return w==6||(w==0&&h<22)||(w==5&&h>=21)}
+function loadHist(days,cb){
+var need=Math.round(days*864e5/TF),all=[],end=Date.now(),hosts=["api.binance.com","data-api.binance.vision"],hi=0;
+function step(){return get("https://"+hosts[hi]+"/api/v3/klines?symbol=PAXGUSDT&interval=15m&limit=1000&endTime="+end).then(function(j){
+if(!j.length)return all;
+var c=j.map(function(k){return{t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5],n:+k[8],tb:+k[9]}});
+all=c.concat(all);end=c[0].t-1;cb(Math.min(all.length,need),need);
+return all.length>=need?all.slice(-need):step()}).catch(function(e){if(hi<hosts.length-1&&!all.length){hi++;return step()}if(all.length>100)return all;throw e})}
+return step()}
+function prep(c){c=c.filter(function(k){return !closedAt(k.t)});var s=0,q=[];
+c.forEach(function(k,i){if(i>=20){var a=s/20;k.h=Math.min(k.h,Math.max(k.o,k.c)+8*a);k.l=Math.max(k.l,Math.min(k.o,k.c)-8*a)}
+q.push(k.h-k.l);s+=q[i];if(i>=20)s-=q[i-20]});return c}
+function sim(c,i,en,sl,tp,d,mb){var risk=d>0?en-sl:sl-en,end=Math.min(c.length-1,i+mb),j;
+for(j=i+1;j<=end;j++){
+if(d>0){if(c[j].l<=sl)return(-risk-COST)/risk;if(c[j].h>=tp)return(tp-en-COST)/risk}
+else{if(c[j].h>=sl)return(-risk-COST)/risk;if(c[j].l<=tp)return(en-tp-COST)/risk}}
+var x=d>0?c[end].c-en:en-c[end].c;return(x-COST)/risk}
+function prof(A,e){var m={},mx=0,poc=0,s=e-479,i,b;
+for(i=s;i<=e;i++){var k=A[i],lo=Math.floor(k.l),hi=Math.floor(k.h),w=k.v/(hi-lo+1);for(b=lo;b<=hi;b++)m[b]=(m[b]||0)+w}
+for(b in m)if(m[b]>mx){mx=m[b];poc=+b}
+return{m:m,mx:mx,poc:poc}}
+function build(A){
+var n=A.length,i,j,F={},P={v:[0],d:[0],a:[0],m:[0],r:[0]};
+for(i=0;i<n;i++){var k=A[i];P.v.push(P.v[i]+k.v);P.d.push(P.d[i]+2*k.tb-k.v);P.a.push(P.a[i]+(k.n?k.v/k.n:0));P.m.push(P.m[i]+(k.h+k.l)/2);P.r.push(P.r[i]+k.h-k.l)}
+FK.forEach(function(x){F[x]=new Array(n).fill(null)});
+var atr=new Array(n).fill(null),au=0,ad=0,pr=null;
+for(i=0;i<n;i++){
+var k=A[i],a=i>=14?(P.r[i+1]-P.r[i-13])/14:null;atr[i]=a;
+if(i>=1){var ch=k.c-A[i-1].c,u=Math.max(ch,0),dn=Math.max(-ch,0);
+if(i<=14){au+=u;ad+=dn;if(i==14){au/=14;ad/=14;F.rsi[i]=ad?100-100/(1+au/ad):100}}
+else{au=(au*13+u)/14;ad=(ad*13+dn)/14;F.rsi[i]=ad?100-100/(1+au/ad):100}}
+if(!a)continue;
+if(i>=33)F.ao[i]=((P.m[i+1]-P.m[i-4])/5-(P.m[i+1]-P.m[i-33])/34)/a;
+if(i>=12)F.roc[i]=(k.c-A[i-12].c)/a;
+if(i>=20)F.rv[i]=k.v/((P.v[i]-P.v[i-20])/20);
+if(k.v>0)F.dr[i]=(2*k.tb-k.v)/k.v;
+if(i>=11)F.f12[i]=(P.d[i+1]-P.d[i-11])/(P.v[i+1]-P.v[i-11]);
+if(i>=47)F.f48[i]=(P.d[i+1]-P.d[i-47])/(P.v[i+1]-P.v[i-47]);
+if(i>=100&&k.n)F.ats[i]=(k.v/k.n)/((P.a[i]-P.a[i-100])/100);
+if(i>=20){var cl=1e9,ch2=-1e9,dl=1e9,dh=-1e9;for(j=i-19;j<=i;j++){cl=Math.min(cl,A[j].c);ch2=Math.max(ch2,A[j].c);dl=Math.min(dl,P.d[j+1]);dh=Math.max(dh,P.d[j+1])}
+if(ch2>cl&&dh>dl)F.div[i]=(k.c-cl)/(ch2-cl)-(P.d[i+1]-dl)/(dh-dl)}
+var h=new Date(k.t).getUTCHours();F.sess[i]=h<7?0:h<13?1:h<21?2:3}
+var pf=null;
+for(i=480;i<n;i++){if(i%32==0)pf=prof(A,i);var a2=atr[i];if(!a2||!pf)continue;F.poc[i]=(A[i].c-(pf.poc+0.5))/a2;F.dens[i]=(pf.m[Math.floor(A[i].c)]||0)/pf.mx}
+var L=new Array(n).fill(null),S=new Array(n).fill(null);
+for(i=0;i<n-HZ-2;i++){var a3=atr[i];if(!a3||a3<2)continue;var c=A[i].c;L[i]=sim(A,i,c,c-a3,c+1.5*a3,1,HZ);S[i]=sim(A,i,c,c+a3,c-1.5*a3,-1,HZ)}
+return{F:F,L:L,S:S,pf:pf}}
+function cell(idx,LB){var n=0,s=0,q=0,last=-1e9;idx.forEach(function(i){if(i-last>=GAP){var r=LB[i];n++;s+=r;q+=r*r;last=i}});if(n<30)return null;var m=s/n;return{n:n,m:m,sd:Math.sqrt(Math.max(0,(q-n*m*m)/(n-1)))}}
+function basis(idx,LB){var n=idx.length,s=0,q=0;idx.forEach(function(i){var r=LB[i];s+=r;q+=r*r});var m=s/n;return{m:m,se2:Math.max(0,(q-n*m*m)/(n-1))/(n/GAP)}}
+function thr(vals){var v=vals.slice().sort(function(a,b){return a-b}),n=v.length;return[v[Math.floor(n*.2)],v[Math.floor(n*.4)],v[Math.floor(n*.6)],v[Math.floor(n*.8)]]}
+function bk(x,f,T){if(f=="sess")return x;var b=0;for(var i=0;i<4;i++)if(x>=T[i])b=i+1;return b}
+function zc(c,B){return(c.m-B.m)/Math.sqrt(c.sd*c.sd/c.n+B.se2)}
+function runTests(D,idxs,T,lb){
+var out=[];
+[["做多",D.L],["做空",D.S]].forEach(function(dd){
+var LB=dd[1],ids=idxs.filter(function(i){return LB[i]!==null}),B=basis(ids,LB);
+FK.forEach(function(f){var by=[[],[],[],[],[]];ids.forEach(function(i){var x=D.F[f][i];if(x!==null)by[bk(x,f,T[f])].push(i)});
+by.forEach(function(g,b){var c=cell(g,LB);if(!c)return;out.push({f:f,b:b,d:dd[0],n:c.n,m:c.m,base:B.m,edge:c.m-B.m,z:zc(c,B)})})})});
+return out}
+function fm(v){return(v>=0?"+":"")+v.toFixed(2)}
+function bn(t){return t.f=="sess"?SL[t.b]:BL[t.b]}
+function drawHeat(A,pf){var e=A.length-1,s=e-479,lo=1e9,hi=-1e9,i,b;
+for(i=s;i<=e;i++){lo=Math.min(lo,A[i].l);hi=Math.max(hi,A[i].h)}
+lo=Math.floor(lo);hi=Math.ceil(hi);var m={},mx=0;
+for(i=s;i<=e;i++){var k=A[i],a=Math.floor(k.l),z=Math.floor(k.h),w=k.v/(z-a+1);for(b=a;b<=z;b++){m[b]=(m[b]||0)+w;if(m[b]>mx)mx=m[b]}}
+var H=200,W=340,bh=H/(hi-lo+1),sv="";
+for(b=lo;b<=hi;b++){var v=(m[b]||0)/mx,y=H-(b-lo+1)*bh;sv+='<rect x="0" y="'+y.toFixed(1)+'" width="'+(v*(W-50)).toFixed(1)+'" height="'+(bh+0.3).toFixed(1)+'" fill="var(--s1)" fill-opacity="'+(0.2+0.8*v).toFixed(2)+'"/>'}
+var py=H-(A[e].c-lo)*bh,oy=H-(pf.poc+0.5-lo)*bh;
+sv+='<line x1="0" x2="'+(W-50)+'" y1="'+py.toFixed(1)+'" y2="'+py.toFixed(1)+'" stroke="var(--tx)" stroke-dasharray="3 3"/><text x="'+(W-46)+'" y="'+(py+4).toFixed(1)+'" font-size="11" fill="var(--tx)">现价 '+A[e].c.toFixed(0)+'</text>'+
+'<text x="'+(W-46)+'" y="'+(oy+4).toFixed(1)+'" font-size="11" fill="var(--up)">密集 '+pf.poc+'</text><line x1="0" x2="'+(W-50)+'" y1="'+oy.toFixed(1)+'" y2="'+oy.toFixed(1)+'" stroke="var(--up)"/>';
+return'<svg viewBox="0 0 '+W+' '+H+'">'+sv+'</svg>'}
+function row(t){return'<tr><td>'+FN[t.f]+'</td><td>'+bn(t)+'</td><td>'+t.d+'</td><td>'+t.n+'</td><td class="'+(t.edge>0?"p":"n")+'">'+fm(t.edge)+'</td><td>'+t.z.toFixed(1)+'</td></tr>'}
+function finish(A,cut,D){
+var tr=[],i;for(i=480;i<cut;i++)tr.push(i);
+var T={};FK.forEach(function(f){if(f=="sess")return;var v=[];tr.forEach(function(j){var x=D.F[f][j];if(x!==null)v.push(x)});T[f]=thr(v)});
+var R=runTests(D,tr,T),pass=R.filter(function(t){return t.z>=ZT&&t.edge>=0.1}),top=R.filter(function(t){return t.edge>0}).sort(function(a,b){return b.z-a.z}).slice(0,10);
+RES={A:A,cut:cut,D:D,T:T,pass:pass};
+var msg=pass.length?pass.length+" 个足迹通过了筛选。下面可以用最后一年确认（只能揭晓一次）。":"没有任何足迹通过筛选。用免费的 PAXG 数据，这些动能、成交量、买卖差、热力图信号，没有发现可靠的预测力。";
+$("out").innerHTML='<div class="card"><div class="vd">'+msg+'</div><p class="sub" style="margin-top:6px">一共检验了 '+R.length+' 种“足迹 × 档位 × 方向”的组合。同时测这么多，碰巧有几个看起来好的很正常，所以门槛定得很高：统计量 z 至少 '+ZT+'，并且比基线至少好 0.1R。</p>'+
+(pass.length?'<button class="rv" onclick="reveal()">用最后一年确认</button><div id="rv"></div>':'')+'</div>'+
+'<h2>当前成交量热力图（过去 5 天）</h2><div class="card">'+drawHeat(A,D.pf)+'<p class="sub">颜色越深，成交越密集。绿线是成交最密集的价位，虚线是现价。</p></div>'+
+'<h2>筛选期里最接近显著的 10 个（不管是否通过）</h2><div class="card"><table><tr><th>足迹</th><th>档位</th><th>方向</th><th>单数</th><th>比基线</th><th>z</th></tr>'+top.map(row).join("")+'</table><p class="sub" style="margin-top:8px">“比基线”是这个条件下，按 1 倍 ATR 止损、1.5 倍 ATR 目标、最多拿 4 小时，平均每单比任意时刻进场多赚多少 R。z 越大越不像巧合。</p></div>'+
+'<p class="sub" style="margin-top:14px">数据来自 Binance 的 PAXG（单一来源）。成交量和买卖差只反映这个代币的交易者，不等于真正的黄金机构资金，所以预测力很可能有限，这正是要检验的。</p>';
+$("stat").textContent="完成";BUSY=0}
+function reveal(){var key="gict_fp_hold",old=null;try{old=localStorage.getItem(key)}catch(e){}
+if(old&&!confirm("最后一年已经揭晓过一次，再看也不会改变结论。继续吗？"))return;
+var R=RES,ho=[],i;for(i=R.cut;i<R.A.length;i++)ho.push(i);
+var res=runTests(R.D,ho,R.T),out=[];
+R.pass.forEach(function(p){var q=res.filter(function(t){return t.f==p.f&&t.b==p.b&&t.d==p.d})[0];out.push({p:p,q:q})});
+var ok=out.filter(function(o){return o.q&&o.q.edge>=0.05&&o.q.z>=2}).length;
+$("rv").innerHTML='<p class="vd" style="margin-top:10px;font-size:15px">'+(ok?ok+" / "+out.length+" 个足迹在最后一年里重现了。":"没有任何足迹在最后一年里重现。筛选期的好成绩只是巧合。")+'</p><table style="margin-top:8px"><tr><th>足迹</th><th>档位</th><th>方向</th><th>筛选期</th><th>最后一年</th></tr>'+out.map(function(o){return'<tr><td>'+FN[o.p.f]+'</td><td>'+bn(o.p)+'</td><td>'+o.p.d+'</td><td>'+fm(o.p.edge)+'</td><td>'+(o.q?fm(o.q.edge)+"（z "+o.q.z.toFixed(1)+"）":"样本不足")+'</td></tr>'}).join("")+'</table><p class="sub" style="margin-top:8px">重现的标准：方向一致、至少好 0.05R、z 至少 2。</p>';
+try{localStorage.setItem(key,"1")}catch(e){}}
+function run(days){
+if(BUSY)return;BUSY=1;$("out").innerHTML="";$("stat").textContent="下载历史数据…";
+loadHist(days,function(a,b){$("stat").textContent="下载历史数据 "+a+" / "+b}).then(function(c){
+var A=prep(c),n=A.length,tCut=A[n-1].t-365*864e5,cut=0;while(cut<n&&A[cut].t<tCut)cut++;
+$("stat").textContent="计算动能、成交量、买卖差和热力图…";
+setTimeout(function(){var D=build(A);$("stat").textContent="检验中…";setTimeout(function(){finish(A,cut,D)},10)},10)
+}).catch(function(e){$("stat").textContent="下载失败，请稍后重试（"+e.message+"）";BUSY=0})}
+[[730,"2 年（筛选 1 年 + 锁定 1 年）"],[1095,"3 年（筛选 2 年 + 锁定 1 年）"]].forEach(function(p){var b=document.createElement("button");b.textContent=p[1];b.onclick=function(){run(p[0])};$("seg").appendChild(b)});
+</script></body></html>
