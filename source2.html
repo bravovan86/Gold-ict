@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>真实黄金数据源测试</title>
+<style>
+body{font:16px -apple-system,"PingFang SC",sans-serif;padding:16px;max-width:520px;margin:auto;color:#131A26;background:#F4F6FA}
+@media(prefers-color-scheme:dark){body{color:#E8EDF5;background:#0C1118}input{background:#151C27;color:#E8EDF5}}
+.c{border:1px solid #ccc;border-radius:10px;padding:10px;margin:10px 0}
+b.ok{color:#1a9d55}b.no{color:#d8404f}small{color:#777;display:block;word-break:break-all;margin-top:4px}
+input{width:100%;padding:10px;margin:6px 0;font-size:15px;border:1px solid #ccc;border-radius:8px}
+button{padding:10px 14px;font-size:15px;border-radius:8px;border:1px solid #888;background:transparent;color:inherit}
+</style></head><body>
+<h3>真实黄金数据源测试</h3>
+<div class="c" id="a"><b>Binance XAUUSDT 永续合约</b>：测试中…</div>
+<div class="c"><b>OANDA 模拟账户 XAU_USD</b>
+<small>只用模拟（practice）账户的 token，不要填真实账户的。token 只会从你的手机直接发给 OANDA，不会保存，也不会写进网页。</small>
+<input id="t" type="password" placeholder="粘贴 OANDA 模拟账户的 API token" autocomplete="off">
+<button onclick="oanda()">测试</button><div id="o"></div></div>
+<script>
+function $(i){return document.getElementById(i)}
+function get(u,h){var c=new AbortController();setTimeout(function(){c.abort()},12000);return fetch(u,{signal:c.signal,headers:h||{}}).then(function(r){if(!r.ok)throw new Error("状态 "+r.status);return r.json()})}
+function dt(ms){return new Date(ms).toISOString().slice(0,10)}
+function binance(){
+var u="https://fapi.binance.com/fapi/v1/klines?symbol=XAUUSDT&interval=15m";
+Promise.all([get(u+"&limit=3"),get(u+"&startTime=0&limit=1")]).then(function(r){
+var l=r[0][r[0].length-1],f=r[1][0];
+$("a").innerHTML="<b>Binance XAUUSDT 永续合约</b> <b class='ok'>✓ 能用</b><small>最新收盘 "+l[4]+"；最早的 15 分钟K线："+dt(f[0])+"；包含成交量和主动买入量："+(l[9]!==undefined?"是":"否")+"</small>"
+}).catch(function(e){$("a").innerHTML="<b>Binance XAUUSDT 永续合约</b> <b class='no'>✗ 不能用</b><small>"+e.message+"（可能是浏览器不允许访问，或这个接口在你的网络下被限制）</small>"})}
+function oanda(){
+var k=$("t").value.trim();if(!k){$("o").innerHTML="<small>请先粘贴 token</small>";return}
+$("o").innerHTML="<small>测试中…</small>";
+var h={Authorization:"Bearer "+k},b="https://api-fxpractice.oanda.com/v3/instruments/XAU_USD/candles?granularity=M15&price=M";
+Promise.all([get(b+"&count=3",h),get(b+"&from=2022-01-03T00:00:00Z&count=2",h)]).then(function(r){
+var l=r[0].candles[r[0].candles.length-1],f=r[1].candles[0];
+$("o").innerHTML="<b class='ok'>✓ 能用</b><small>最新收盘 "+l.mid.c+"（K线时间 "+l.time.slice(0,16)+"）；2022 年的数据："+(f?f.time.slice(0,10)+" 起有数据，单根最多可取 5000 根":"没有取到")+"；成交量字段（报价跳动次数）："+l.volume+"</small>"
+}).catch(function(e){$("o").innerHTML="<b class='no'>✗ 不能用</b><small>"+e.message+"（如果是“Failed to fetch”，多半是浏览器不允许网页直接访问 OANDA，或者 token 不对；如果是状态 401，是 token 不对）</small>"})}
+binance();
+</script></body></html>
