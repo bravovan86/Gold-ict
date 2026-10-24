@@ -175,3 +175,28 @@
 
             const trendPill = document.getElementById('ai-trend');
             const actionBanner = document.getElementById('ai-action');
+            const circleBox = document.getElementById('circle-box');
+if(score >= 82) {
+circleBox.style.borderColor = '#0ecb81';
+trendPill.innerText = "🔥 侦测到大资金强力异动共振";
+trendPill.className = "status-pill bullish";
+const limitPrice = isUp ? (candle.low * 1.0001).toFixed(2) : (candle.high * 0.9999).toFixed(2);
+actionBanner.innerText = 🎯 黄金左侧埋伏: 建议在 $${limitPrice} 附近挂 Limit 秩序单;
+if (Math.random() > 0.92) {
+const now = new Date().toLocaleTimeString();
+tradeLogs.unshift({
+time: now, msg: 成功捕捉金价 $${candle.close.toFixed(2)} 的不平衡区，已回传进行AI算法修正。
+});
+if(tradeLogs.length > 3) tradeLogs.pop();
+let html = "";
+tradeLogs.forEach(l => html += <div class="log-row"><span>[${l.time}] AI黄金复盘</span><span>${l.msg}</span></div>);
+document.getElementById('log-list').innerHTML = html;
+}
+} else {
+circleBox.style.borderColor = '#f0b90b';
+trendPill.innerText = "⏳ 黄金处于正常箱体震荡阶段";
+trendPill.className = "status-pill";
+actionBanner.innerText = "🤖 信心指数未达高标，AI保持空仓，继续深度学习中...";
+}
+}
+initWebSocket();
